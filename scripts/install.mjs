@@ -28,9 +28,17 @@ Options:
   -h, --help                  Show this help without changing any files.
 
 The installer writes three canonical Secretary surfaces and a hash-bound uninstall
-manifest. It refuses filesystem roots, source-overlapping targets, symlink traversal,
-and unowned collisions.
+manifest. A target directory named .claude receives the Claude Code skill surface
+(/secretary); any other target receives the Codex skill surface ($secretary). It
+refuses filesystem roots, source-overlapping targets, symlink traversal, and unowned
+collisions.
 `;
+
+function skillSourceFor(targetRoot) {
+  return path.basename(targetRoot).toLowerCase() === '.claude'
+    ? 'templates/claude/skills/secretary/SKILL.md'
+    : 'skills/secretary/SKILL.md';
+}
 
 function assertSafeLinkPath(value, label) {
   if (/[\u0000-\u001f\u007f`]/u.test(value)) {
@@ -197,7 +205,7 @@ export async function install({ target, exactCommandAliases = false, root = PROJ
   }
   const copies = [
     ['commands/secretary.md', 'commands/secretary.md'],
-    ['skills/secretary/SKILL.md', 'skills/secretary/SKILL.md'],
+    [skillSourceFor(targetRoot), 'skills/secretary/SKILL.md'],
     ['agents/secretary.md', 'agents/secretary.md'],
   ];
   const writes = [];

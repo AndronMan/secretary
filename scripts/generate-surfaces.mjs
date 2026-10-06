@@ -31,6 +31,8 @@ export function renderSurfaces(contract) {
   const codexPrelude = operationalPrelude('$secretary');
   const claudePrelude = operationalPrelude('/secretary');
   const skill = `---\nname: secretary\ndescription: ${CODEX_DESCRIPTION}\n---\n\n${GENERATED}\n\n${codexPrelude}\n\n${body}\n`;
+  // Claude Code invokes skills as /secretary; the installer picks this surface for a .claude target.
+  const claudeSkill = `---\nname: secretary\ndescription: ${CLAUDE_DESCRIPTION}\n---\n\n${GENERATED}\n\n${claudePrelude}\n\n${body}\n`;
   const command = `---\ndescription: ${CLAUDE_DESCRIPTION}\n---\n\n${GENERATED}\n\n${claudePrelude}\n\n${body}\n`;
   const agent = `---\nname: secretary\ndescription: ${AGENT_DESCRIPTION}\n---\n\n${instruction}`;
   return new Map([
@@ -40,6 +42,7 @@ export function renderSurfaces(contract) {
     ['SKILL.md', skill],
     ['commands/secretary.md', command],
     ['skills/secretary/SKILL.md', skill],
+    ['templates/claude/skills/secretary/SKILL.md', claudeSkill],
     ['agents/secretary.md', agent],
   ]);
 }

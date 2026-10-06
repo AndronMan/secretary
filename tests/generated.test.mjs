@@ -47,6 +47,11 @@ test('Claude and Codex surfaces identify their own invocation and preserve the c
   assert.doesNotMatch(claude, /Invoke \$secretary/);
   assert.match(codex, /description: Use \$secretary /);
   assert.match(codex, /## \$secretary operational prelude/);
+  const claudeSkill = await readFile(path.join(PROJECT_ROOT, 'templates', 'claude', 'skills', 'secretary', 'SKILL.md'), 'utf8');
+  assert.match(claudeSkill, /\nname: secretary\n/);
+  assert.match(claudeSkill, /description: Use \/secretary /);
+  assert.match(claudeSkill, /## \/secretary operational prelude/);
+  assert.doesNotMatch(claudeSkill, /(## |When invoked as |description: Use )\$secretary/);
 
   const orderedWorkflow = [
     'Local controller link',
@@ -70,6 +75,17 @@ test('Claude and Codex surfaces identify their own invocation and preserve the c
   ];
   assertOrderedFragments(claude, orderedWorkflow);
   assertOrderedFragments(codex, orderedWorkflow);
+});
+
+test('a .claude target receives the Claude Code skill surface', async () => {
+  const parent = await canonicalTemporaryDirectory('secretary-install-claude-');
+  const target = path.join(parent, '.claude');
+  await mkdir(target);
+  await install({ target });
+  const skill = await readFile(path.join(target, 'skills', 'secretary', 'SKILL.md'), 'utf8');
+  assert.match(skill, /description: Use \/secretary /);
+  assert.match(skill, /## \/secretary operational prelude/);
+  assert.doesNotMatch(skill, /(## |When invoked as |description: Use )\$secretary/);
 });
 
 test('exact command aliases are opt-in and collision-safe', async () => {
