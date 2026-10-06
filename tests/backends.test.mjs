@@ -4,7 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { buildClaudeInvocation, parseClaudeResult } from '../lib/backends/claude.mjs';
-import { buildCodexInvocation, parseCodexResult } from '../lib/backends/codex.mjs';
+import { buildCodexInvocation, parseCodexResult, resolveCodexBinary } from '../lib/backends/codex.mjs';
 
 const fixtures = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const read = (name) => readFile(path.join(fixtures, name), 'utf8');
@@ -40,6 +40,31 @@ test('Codex argv uses exec JSON, exact grants, isolated home, no approval prompt
   assert.ok(!invocation.args.includes('--ephemeral'));
   assert.ok(!invocation.args.includes('-a'));
   assert.equal(invocation.env.CODEX_HOME, '/state/secretary/codex-home');
+});
+
+test('Codex reasoning effort is passed explicitly and validated', () => {
+  const env = { XDG_STATE_HOME: '/state', HOME: '/home/test' };
+  const base = {
+    neutralCwd: '/state/secretary/neutral',
+    codexHome: '/state/secretary/codex-home',
+    model: 'gpt-test',
+    outputSchema: '/state/secretary/result-wire-schema.json',
+    env,
+    binary: 'codex',
+  };
+  assert.ok(!buildCodexInvocation(base).args.some((arg) => arg.startsWith('model_reasoning_effort=')));
+  const high = buildCodexInvocation({ ...base, reasoningEffort: 'high' });
+  assert.ok(high.args.includes('model_reasoning_effort="high"'));
+  assert.equal(high.args[high.args.length - 1], '-');
+  assert.throws(() => buildCodexInvocation({ ...base, reasoningEffort: 'turbo' }), /reasoning effort/);
+});
+
+test('Codex binary resolution prefers an explicit override and never returns a Windows shim', () => {
+  assert.equal(resolveCodexBinary({ SECRETARY_CODEX_BIN: '/opt/codex' }, 'win32'), '/opt/codex');
+  assert.equal(resolveCodexBinary({ PATH: '/usr/bin' }, 'linux'), 'codex');
+  const resolved = resolveCodexBinary({ PATH: '/nowhere' }, 'win32');
+  assert.equal(resolved, 'codex');
+  assert.ok(!resolved.endsWith('.cmd'));
 });
 
 test('Claude normalisation accepts only strict top-level structured success', async () => {

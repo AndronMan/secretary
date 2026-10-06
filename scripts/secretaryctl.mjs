@@ -210,7 +210,7 @@ function backendName(value) {
   return value;
 }
 
-async function backendInvocation({ backend, model, workspace, fullSchema, schemaFileName, allowedTools, directory, neutral, env }) {
+async function backendInvocation({ backend, model, reasoningEffort, workspace, fullSchema, schemaFileName, allowedTools, directory, neutral, env }) {
   const dialect = backend === 'claude' ? 'anthropic' : 'openai';
   const wireSchema = deriveWireSchema(fullSchema, { dialect });
   const wireSchemaPath = path.join(directory, schemaFileName);
@@ -226,11 +226,11 @@ async function backendInvocation({ backend, model, workspace, fullSchema, schema
   }
   const codexHome = path.join(directory, 'codex-home');
   await prepareIsolatedCodexHome(codexHome, env);
-  const invocation = buildCodexInvocation({ neutralCwd: neutral, codexHome, model, outputSchema: wireSchemaPath, env });
+  const invocation = buildCodexInvocation({ neutralCwd: neutral, codexHome, model, reasoningEffort, outputSchema: wireSchemaPath, env });
   return { ...invocation, cwd: neutral, parse: parseCodexResult, parsePreflight: parseCodexPreflight };
 }
 
-export async function performPreflight({ backend, directory, model, env = process.env, onSpawn }) {
+export async function performPreflight({ backend, directory, model, reasoningEffort, env = process.env, onSpawn }) {
   backendName(backend);
   try {
     await assertStateWritable(env);
@@ -244,6 +244,7 @@ export async function performPreflight({ backend, directory, model, env = proces
   const invocation = await backendInvocation({
     backend,
     model,
+    reasoningEffort,
     workspace: neutral,
     fullSchema: HEALTH_SCHEMA,
     schemaFileName: 'preflight-wire-schema.json',
@@ -288,6 +289,7 @@ async function prepareCommand(argv, env) {
     workspace: 'string',
     backend: 'string',
     model: 'string',
+    'reasoning-effort': 'string',
   });
   const runId = validateRunId(requireOption(options, 'run-id'));
   const workspace = await realpath(requireOption(options, 'workspace'));
@@ -309,6 +311,7 @@ async function prepareCommand(argv, env) {
   if (relativeProfile.startsWith('..') || path.isAbsolute(relativeProfile)) throw new Error('profile must be inside the project profiles directory');
   const profile = await readJson(profilePath);
   if (options.model) profile.model = options.model;
+  if (options['reasoning-effort']) profile.reasoning_effort = options['reasoning-effort'];
   const profileSchema = await readJson(path.join(PROJECT_ROOT, 'schemas', 'profile.json'));
   const profileErrors = validateSchema(profile, profileSchema);
   if (profileErrors.length > 0) throw new Error(`invalid profile: ${profileErrors.join('; ')}`);
@@ -447,6 +450,7 @@ async function runCommand(argv, env) {
       backend: request.backend,
       directory,
       model: profile.model,
+      reasoningEffort: profile.reasoning_effort,
       env,
       onSpawn: ({ pid, pgid }) => updateRunState(runId, { pid, pgid }, env),
     });
@@ -460,6 +464,7 @@ async function runCommand(argv, env) {
     const invocation = await backendInvocation({
       backend: request.backend,
       model: profile.model,
+      reasoningEffort: profile.reasoning_effort,
       workspace: neutral,
       fullSchema: resultSchema,
       schemaFileName: 'result-wire-schema.json',
@@ -822,9 +827,14 @@ async function cancelCommand(argv, env) {
 }
 
 async function preflightCommand(argv, env) {
-  const options = parseOptions(argv, { backend: 'string', model: 'string', json: 'boolean' });
+  const options = parseOptions(argv, { backend: 'string', model: 'string', 'reasoning-effort': 'string', json: 'boolean' });
   if (!options.backend) throw new Error('missing required option: --backend (valid: claude, codex)');
-  const result = await performPreflight({ backend: backendName(options.backend), model: options.model, env });
+  const result = await performPreflight({
+    backend: backendName(options.backend),
+    model: options.model,
+    reasoningEffort: options['reasoning-effort'],
+    env,
+  });
   writeStdout(`${JSON.stringify(result)}\n`);
 }
 
